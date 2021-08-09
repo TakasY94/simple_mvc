@@ -1,13 +1,21 @@
 package org.example.web.dto;
 
-public class Book {
+import javax.validation.constraints.Digits;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
 
+public class Book {
+    @NotBlank
+    @Size(min=2)
     private String author;
+    @NotBlank
+    @Size(min=2)
     private String title;
-    private String size;
+    @Digits(integer = 4, fraction = 0)
+    private Integer size;
     private Integer Id;
 
-    public Book(String author, String title, String size, Integer id) {
+    public Book(String author, String title, Integer size, Integer id) {
         this.author = author;
         this.title = title;
         this.size = size;
@@ -33,11 +41,11 @@ public class Book {
         this.title = title;
     }
 
-    public String getSize() {
+    public Integer getSize() {
         return size;
     }
 
-    public void setSize(String size) {
+    public void setSize(Integer size) {
         this.size = size;
     }
 

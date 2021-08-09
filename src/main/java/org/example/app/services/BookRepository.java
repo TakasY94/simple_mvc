@@ -2,104 +2,117 @@ package org.example.app.services;
 
 import org.apache.log4j.Logger;
 import org.example.web.dto.Book;
+import org.example.web.dto.BookToFilter;
+import org.example.web.dto.BookToRemove;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Repository
-public class BookRepository implements ProjectRepository<Book>{
+public class BookRepository implements ProjectRepository<Book>, ApplicationContextAware {
 
     private Logger logger = Logger.getLogger(BookRepository.class);
-    private final List<Book> repo = new ArrayList<>();
+    //private final List<Book> repo = new ArrayList<>();
     private final List<Book> repoFiltered = new ArrayList<>();
+    private ApplicationContext context;
+
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    @Autowired
+    public BookRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     @Override
-    public List<Book> retreiveAll(Boolean filtered) {
-        if (filtered) return new ArrayList<>(repoFiltered);
-        else return new ArrayList<>(repo);
+    public List<Book> retreiveAll() {
+        List<Book> books = jdbcTemplate.query("SELECT * FROM books", (ResultSet rs, int rowNum) -> {
+            Book book = new Book();
+            book.setId(rs.getInt("id"));
+            book.setAuthor(rs.getString("author"));
+            book.setTitle(rs.getString("title"));
+            book.setSize(rs.getInt("size"));
+            return book;
+        });
+        //if (filtered) return new ArrayList<>(repoFiltered);
+        //else return new ArrayList<>(repo);
+        return new ArrayList<>(books);
     }
 
     @Override
     public void store(Book book) {
-        book.setId(book.hashCode());
+        MapSqlParameterSource parameterSource = new MapSqlParameterSource();
+        parameterSource.addValue("author", book.getAuthor());
+        parameterSource.addValue("title", book.getTitle());
+        parameterSource.addValue("size", book.getSize());
+        jdbcTemplate.update("INSERT INTO books(author, title, size) VALUES(:author, :title, :size)", parameterSource);
         logger.info("store new book" + book);
-        repo.add(book);
     }
 
     @Override
     public boolean removeItemById(Integer bookIdToRemove) {
-        boolean success = false;
-        for(Book book : retreiveAll(false)){
-            if (book.getId().equals(bookIdToRemove)){
-                logger.info("remove book completed: " + book);
-                repo.remove(book);
-                success = true;
-            }
-        }
-        return success;
+        MapSqlParameterSource parameterSource = new MapSqlParameterSource();
+        parameterSource.addValue("id", bookIdToRemove);
+        jdbcTemplate.update("DELETE FROM books WHERE id = :id", parameterSource);
+        logger.info("remove book completed7");
+        return true;
     }
 
     @Override
-    public boolean removeItemByRegularExpression(String author, String title, String size) {
-        boolean success = false;
-        Pattern authorPattern = Pattern.compile(author, Pattern.CASE_INSENSITIVE);
-        Pattern titlePattern = Pattern.compile(title, Pattern.CASE_INSENSITIVE);
-        Pattern sizePattern = Pattern.compile(size, Pattern.CASE_INSENSITIVE);
-        for(Book book : retreiveAll(false)){
-            if (author != null && !author.isEmpty()  && authorPattern.matcher(book.getAuthor()).find()) {
-                repo.remove(book);
-                logger.info("remove book completed: " + book);
-                success = true;
-                continue;
-            }
-            if (title != null && !title.isEmpty() &&  titlePattern.matcher(book.getTitle()).find()) {
-                repo.remove(book);
-                logger.info("remove book completed: " + book);
-                success = true;
-                continue;
-            }
-            if (size != null && !size.isEmpty() &&  sizePattern.matcher(book.getSize()).find()){
-                repo.remove(book);
-                logger.info("remove book completed: " + book);
-                success = true;
-                continue;
-            }
-
-        }
-        return success;
+    public boolean removeItemByRegularExpression(BookToRemove bookToRemove) {
+        MapSqlParameterSource parameterSource = new MapSqlParameterSource();
+        parameterSource.addValue("author", "%");
+        parameterSource.addValue("title", "%");
+        parameterSource.addValue("size", "%");
+        if (!bookToRemove.getAuthor().isEmpty()) parameterSource.addValue("author", bookToRemove.getAuthor());
+        if (!bookToRemove.getTitle().isEmpty()) parameterSource.addValue("title", bookToRemove.getTitle());
+        if (bookToRemove.getSize() != null) parameterSource.addValue("size", bookToRemove.getSize());
+        jdbcTemplate.update("SELECT * FROM books WHERE author LIKE :author AND title LIKE :title AND size LIKE :size", parameterSource );
+        return true;
     }
 
     @Override
-    public boolean filterItemByRegularExpression(String author, String title, String size) {
-        boolean success = false;
-        Pattern authorPattern = Pattern.compile(author, Pattern.CASE_INSENSITIVE);
-        Pattern titlePattern = Pattern.compile(title, Pattern.CASE_INSENSITIVE);
-        Pattern sizePattern = Pattern.compile(size, Pattern.CASE_INSENSITIVE);
-        repoFiltered.clear();
-        for(Book book : retreiveAll(false)){
-            if (author != null && !author.isEmpty()  && authorPattern.matcher(book.getAuthor()).find()) {
-                repoFiltered.add(book);
-                logger.info("book filtered: " + book);
-                success = true;
-                continue;
-            }
-            if (title != null && !title.isEmpty() &&  titlePattern.matcher(book.getTitle()).find()) {
-                repoFiltered.add(book);
-                logger.info("book filtered: " + book);
-                success = true;
-                continue;
-            }
-            if (size != null && !size.isEmpty() &&  sizePattern.matcher(book.getSize()).find()){
-                repoFiltered.add(book);
-                logger.info("book filtered: " + book);
-                success = true;
-                continue;
-            }
+    public List<Book> filterItemByRegularExpression(BookToFilter bookToFilter) {
+        MapSqlParameterSource parameterSource = new MapSqlParameterSource();
+        parameterSource.addValue("author", "%");
+        parameterSource.addValue("title", "%");
+        parameterSource.addValue("size", "%");
+        if (!bookToFilter.getAuthor().isEmpty()) parameterSource.addValue("author", bookToFilter.getAuthor());
+        if (!bookToFilter.getTitle().isEmpty()) parameterSource.addValue("title", bookToFilter.getTitle());
+        if (bookToFilter.getSize() != null) parameterSource.addValue("size", bookToFilter.getSize());
+        List<Book> books = jdbcTemplate.query("SELECT * FROM books WHERE author LIKE :author AND title LIKE :title AND size LIKE :size", parameterSource, (ResultSet rs, int rowNum) -> {
+            Book book = new Book();
+            book.setId(rs.getInt("id"));
+            book.setAuthor(rs.getString("author"));
+            book.setTitle(rs.getString("title"));
+            book.setSize(rs.getInt("size"));
+            return book;
+        });
 
-        }
-        return success;
+        return new ArrayList<>(books);
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.context = applicationContext;
+    }
+
+    private void defaultInit(){
+        logger.info("default INIT in book repo");
+    }
+
+
+    private void defaultDestroy(){
+        logger.info("default DESTROY in book repo");
+
     }
 }

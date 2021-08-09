@@ -13,12 +13,17 @@
             .login_item{
                 margin-bottom: 10px;
             }
+
+            .login_img{
+                width: 300px;
+                height: 300px;
+            }
         </style>
     </head>
     <body>
         <div id="login_form">
             <form method="post" th:action="@{/login/auth}" th:object="${loginForm}">
-                <img class="login_item" th:src="@{/images/book_icon.png}">
+                <img class="login_item login_img" th:src="@{/images/book_icon.png}">
                 <br>
                 <input class="login_item" type="text" placeholder="enter username" th:field="*{username}">
                 <br>
